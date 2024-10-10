@@ -12,6 +12,8 @@ use Drupal\Core\Database\Connection;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Cache\Cache;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 
 /**
  * Custom block to display comment statistics on the user page.
@@ -28,11 +30,18 @@ use Drupal\Core\Cache\Cache;
 class CommentStatisticsBlock extends BlockBase implements ContainerFactoryPluginInterface {
 
   /**
-   * DB connection.
+   * The entity type manager.
    *
-   * @var \Drupal\Core\Database\Connection
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
    */
-  protected $database;
+  protected $entityTypeManager;
+
+  /**
+   * Current User.
+   *
+   * @var \Drupal\Core\Session\AccountInterface
+   */
+  protected $currentUser;
 
   /**
    * Constructor.
@@ -42,14 +51,18 @@ class CommentStatisticsBlock extends BlockBase implements ContainerFactoryPlugin
    * @param string $plugin_id
    *   Plugin ID.
    * @param mixed $plugin_definition
-   *   Plugin definition.
-   * @param \Drupal\Core\Database\Connection $database
-   *   Database connection.
+   *   Plugin implementation definition.
+   * @param \Drupal\Core\Session\AccountInterface $current_user
+   *   The user entity service.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   *   The entity type manager.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, Connection $database) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager,
+                              AccountInterface $current_user) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
 
-    $this->database = $database;
+    $this->entityTypeManager = $entity_type_manager;
+    $this->currentUser = $current_user;
   }
 
   /**
@@ -60,7 +73,8 @@ class CommentStatisticsBlock extends BlockBase implements ContainerFactoryPlugin
       $configuration,
       $plugin_id,
       $plugin_definition,
-      $container->get('database')
+      $container->get('entity_type.manager'),
+      $container->get('current_user')
     );
   }
 
@@ -68,36 +82,94 @@ class CommentStatisticsBlock extends BlockBase implements ContainerFactoryPlugin
    * {@inheritdoc}
    */
   public function build() {
-    /* Get total comments count */
-    $query = $this->database->select('comment', 'c');
-    $query->addExpression('COUNT(*)', 'total');
-    $total_comments = $query->execute()->fetchField();
+    /* Get the current /user/{uid} page or current user (id) or anonymous (0) */
+    $current_route = \Drupal::routeMatch();
 
-    /* Get total approved count */
-    $query_approved = $this->database->select('comment_field_data', 'cfd');
-    $query_approved->condition('cfd.status', 1);
-    $query_approved->addExpression('COUNT(*)', 'approved');
-    $approved_comments = $query_approved->execute()->fetchField();
+    if ($current_route->getRouteName() === 'entity.user.canonical') {
+      $uid = $current_route->getParameter('user')->id();
+    } else {
+      $uid = $this->currentUser->id();
+    }
 
-    /* Get total pending count */
-    $query_pending = $this->database->select('comment_field_data', 'cfd');
-    $query_pending->condition('cfd.status', 0);
-    $query_pending->addExpression('COUNT(*)', 'pending');
-    $pending_comments = $query_pending->execute()->fetchField();
+    /* Get comments count */
+    $comments = $this->getUserComments($uid);
+    $totalCommentsCount = count($comments);
+
+    /* Get comments total words. */
+    $totalCommentsWords = $this->getUserCommentsWordCount($uid);
 
     $build = [
       '#theme' => 'item_list',
       '#items' => [
-        $this->t('Total de comentarios: @total', ['@total' => $total_comments]),
-        $this->t('Comentarios aprobados: @approved', ['@approved' => $approved_comments]),
-        $this->t('Comentarios pendientes: @pending', ['@pending' => $pending_comments]),
+        'UID: '.$uid,
+        $this->t('Número total de comentarios: @total', ['@total' => $totalCommentsCount]),
+        $this->t('Total de palabras en comentarios: @total', ['@total' => $totalCommentsWords])
       ],
       '#title' => $this->t('Estadísticas de Comentarios'),
       '#cache' => [
-        'max-age' => Cache::PERMANENT,
+        'max-age' => 0 #Cache::PERMANENT,
       ],
     ];
 
     return $build;
+  }
+
+  /**
+   * Get the total word count of all comments made by a specific user.
+   *
+   * @param int $uid
+   *   The user ID for which we are calculating the word count.
+   *
+   * @return int
+   *   The total word count.
+   */
+  protected function getUserCommentsWordCount(int $uid): int {
+    /* if $uid is anonymous, then return 0 */
+    if ($uid == 0) {
+      return 0;
+    }
+
+    /* Get comments from $uid user. */
+    $comment_ids = $this->getUserComments($uid);
+
+    /* Count words */
+    $totalWordsCount = 0;
+
+    if (!empty($comment_ids)) {
+      $comments = $this->entityTypeManager->getStorage('comment')->loadMultiple($comment_ids);
+
+      foreach ($comments as $comment) {
+        $commentBody = $comment->get('comment_body')->value;
+        $wordsCount = str_word_count(strip_tags($commentBody));
+
+        $totalWordsCount += $wordsCount;
+      }
+    }
+
+    return $totalWordsCount;
+  }
+
+  /**
+   * Get the user $uid comments or return an empty array.
+   *
+   * @param int $uid
+   *   The comment's owner.
+   *
+   * @return array
+   *   An array with all comment_id from the $uid comments.
+   */
+  protected function getUserComments(int $uid): array {
+    /* if $uid is anonymous, then return empty array */
+    if ($uid == 0) {
+      return [];
+    }
+
+    /* Get comments from $uid user. */
+    $query = $this->entityTypeManager->getStorage('comment')->getQuery();
+    $query->accessCheck(FALSE);
+    $query->condition('uid', $uid);
+    $comment_ids = $query->execute();
+
+    return $comment_ids;
   }
 }
