@@ -8,12 +8,13 @@
 namespace Drupal\amara_blocks\Plugin\Block;
 
 use Drupal\Core\Block\BlockBase;
-use Drupal\Core\Database\Connection;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Url;
+use Drupal\Core\Render\Markup;
 
 /**
  * Custom block to display comment statistics on the user page.
@@ -81,6 +82,13 @@ class CommentStatisticsBlock extends BlockBase implements ContainerFactoryPlugin
   /**
    * {@inheritdoc}
    */
+  public function getCacheContexts() {
+    return ['url'];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function build() {
     /* Get the current /user/{uid} page or current user (id) or anonymous (0) */
     $current_route = \Drupal::routeMatch();
@@ -98,16 +106,53 @@ class CommentStatisticsBlock extends BlockBase implements ContainerFactoryPlugin
     /* Get comments total words. */
     $totalCommentsWords = $this->getUserCommentsWordCount($uid);
 
+    /* Get the last five comments for the user */
+    $comments = $this->getLastFiveComments($uid);
+    $totalShowCommentsCount = count($comments);
+
+    /* Get the block lines to show */
+    if ($uid == 0) {
+      /* If user is anonymous, display a message asking them to log in */
+      $login_url = Url::fromRoute('user.login')->toString();
+
+      $lines = [
+        Markup::create('<a href="'.$login_url.'">'.$this->t('Identifíquese').'</a> '.$this->t('para mostrar estadísticas de sus comentarios.'))
+      ];
+    } else {
+      /* If user is logged in or we are on a /user page, show the corresponding statistics */
+      $lines = [
+        'USER ID: '.$uid
+      ];
+
+      /* Add the last comments statistics and the last five comments (preview) */
+      if ($totalShowCommentsCount) {
+        $lines[] = $this->t('Número total de comentarios: @total', ['@total' => $totalCommentsCount]);
+        $lines[] = t('Total de palabras en comentarios: @total', ['@total' => $totalCommentsWords]);
+        $lines[] = $this->t('Últimos @total comentarios:', ['@total' => $totalShowCommentsCount]);
+
+        foreach ($comments as $comment) {
+          $comment_body = $comment->get('comment_body')->value;
+          $preview = mb_substr($comment_body, 0, 100) . (mb_strlen($comment_body) > 100 ? '...' : '');
+
+          $nid = $comment->getCommentedEntity()->id();
+          $nodeTitle = $comment->getCommentedEntity()->label();
+          $nodeUrl = Url::fromRoute('entity.node.canonical', ['node' => $nid])->toString();
+          $nodeLink = '<a href="'.$nodeUrl.'">'.$nodeTitle.'</a>';
+
+          $lines[] = Markup::create($preview . ' ' . $nodeLink);
+        }
+      } else {
+        /* This user hasn't comments yet */
+        $lines[] = $this->t('Este usuario/a no ha escrito comentarios aún.');
+      }
+    }
+
     $build = [
       '#theme' => 'item_list',
-      '#items' => [
-        'UID: '.$uid,
-        $this->t('Número total de comentarios: @total', ['@total' => $totalCommentsCount]),
-        $this->t('Total de palabras en comentarios: @total', ['@total' => $totalCommentsWords])
-      ],
+      '#items' => $lines,
       '#title' => $this->t('Estadísticas de Comentarios'),
       '#cache' => [
-        'max-age' => 0 #Cache::PERMANENT,
+        'max-age' => Cache::PERMANENT,
       ],
     ];
 
@@ -171,5 +216,32 @@ class CommentStatisticsBlock extends BlockBase implements ContainerFactoryPlugin
     $comment_ids = $query->execute();
 
     return $comment_ids;
+  }
+
+  /**
+   * Get the last five comments of a specific user.
+   *
+   * @param int $uid
+   *   The user ID for which we are retrieving the comments.
+   *
+   * @return \Drupal\comment\CommentInterface[]
+   *   An array of comment entities.
+   */
+  protected function getLastFiveComments($uid): array {
+    /* get the last five $uid user comment_ids */
+    $query = $this->entityTypeManager->getStorage('comment')->getQuery();
+    $query->accessCheck(FALSE);
+    $query->condition('uid', $uid);
+    $query->condition('status', 1);
+    $query->sort('created', 'DESC');
+    $query->range(0, 5);
+    $comment_ids = $query->execute();
+
+    /* Load comments and return the query result */
+    if (!empty($comment_ids)) {
+      return $this->entityTypeManager->getStorage('comment')->loadMultiple($comment_ids);
+    }
+
+    return [];
   }
 }
