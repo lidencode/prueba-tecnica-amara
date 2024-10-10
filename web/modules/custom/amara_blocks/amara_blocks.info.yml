@@ -1,0 +1,7 @@
+name: 'Amara Blocks'
+type: module
+description: 'Custom blocks for Amara technical test.'
+core_version_requirement: ^10
+package: AMARA
+dependencies:
+  - drupal:comment
