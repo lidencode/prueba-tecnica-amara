@@ -1,0 +1,67 @@
+PRUEBA TÉCNICA DRUPAL
+=====================
+
+Teniendo un sitio con muchísimos usuarios y comentarios.
+
+Crear un bloque custom de código que tiene que mostrar lo siguiente:
+
+1.	El total de comentarios del usuario.
+2.	Listar los cinco últimos comentarios y el título del nodo asociado del usuario.
+3.	Mostrar el número total de palabras de todos los comentarios del usuario.
+
+(otros requerimientos solicitados)
+
+4.	Inyectar dependencias.
+5.	Se use el sistema de cache de Drupal.
+6.	Que haya cadenas en español que sean traducibles.
+
+Es decir, los 3 puntos tienen que mostrar la información del usuario actual. Idealmente, debería funcionar de la siguiente manera:
+-	Si coloco el bloque en una página de usuario (el ID del usuario está presente en la URL), devuelve los datos de ese usuario.
+-	Si lo coloco en otra parte del site donde no hay contexto del usuario, utiliza el usuario activo (logueado).
+
+Se deberá entregar al menos un módulo custom compatible con cualquier instalación de Drupal 10.
+
+Se tendrá en cuenta el nivel de detalle entregado.
+
+Se deberá indicar el número de horas que ha llevado el desarrollo.
+
+
+PASOS REALIZADOS
+================
+
+* Creado el repositorio en GIT.
+* Creado el proyecto en drupal 10 usando composer y ddev.
+* Instalado el módulo devel para generar contenido falso (usuarios y comentarios)
+* Creados 50 usuarios, 50 nodos y 590 comentarios para ajustarme a los requerimientos de la prueba.
+* Creado un custom module "Amara Block" que contendrá el custom block que se requiere para la prueba.
+* Creado un custom block que cumple con los siguientes criterios de la prueba:
+  - Inyección de dependencias.
+  - Uso de la cache de Drupal.
+  - Cadenas en español que sean traducibles.
+* Se ha modificado el contenido del bloque para que muestre el siguiente contenido:
+  - Si accedemos a la página de un usuario /page/{uid} se muestras las estadísticas de ese usuario que incluye lo siguiente:
+    * El USER ID
+	* Número total de comentarios
+	* Total de palabras en comentarios
+	* Últimos 5 comentarios (o menos), o un mensaje que indica que el usuario no ha comentado aún.
+  - Si accedemos a cualquier otra página y el usuario está logado, mostramos las mismas estadísticas pero del usuario logado.
+  - Si el usuario no está logado y no está en una página de usuario /page/{uid}, se le muestra un mensaje que le invita a identificarse para ver sus estadísticas.
+* Añadida un backup de la base de datos y esta documentación al proyecto.
+
+
+TOTAL DE TIEMPO INVERTIDO
+=========================
+
+3 HORAS APROX, INCLUYENDO LA INSTALACIÓN Y GENERACIÓN DE CONTENIDO. (Se puede ver en los timestamps de los commits)
+
+
+ALGUNAS OBSERVACIONES
+=====================
+
+* La instalación del proyecto está realizada con ddev (se añade la configuración al repositorio)
+* He añadido al repositorio configuraciones y ficheros que normalmente no se añaden en un proyecto, como el backup de la base de datos. No es un error.
+* Se añade la base de datos que incluye el contenido para hacer las pruebas que se requieren para el ejercicio. Normalmente solo exportaría la configuración mediante drush cex.
+* Normalmente las cadenas del bloque las incluiría en inglés y traducibles. Las he puesto en castellano porque así me lo han indicado, aunque son traducibles igualmente.
+* La información se muestra en un bloque con un listado porque no se ha pedido ningún formato concreto, solo que se mostrase la información.
+
+¡GRACIAS!
