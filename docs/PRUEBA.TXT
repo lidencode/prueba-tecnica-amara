@@ -41,9 +41,9 @@ PASOS REALIZADOS
 * Se ha modificado el contenido del bloque para que muestre el siguiente contenido:
   - Si accedemos a la página de un usuario /page/{uid} se muestras las estadísticas de ese usuario que incluye lo siguiente:
     * El USER ID
-	* Número total de comentarios
-	* Total de palabras en comentarios
-	* Últimos 5 comentarios (o menos), o un mensaje que indica que el usuario no ha comentado aún.
+	  * Número total de comentarios
+	  * Total de palabras en comentarios
+	  * Últimos 5 comentarios (o menos), o un mensaje que indica que el usuario no ha comentado aún.
   - Si accedemos a cualquier otra página y el usuario está logado, mostramos las mismas estadísticas pero del usuario logado.
   - Si el usuario no está logado y no está en una página de usuario /page/{uid}, se le muestra un mensaje que le invita a identificarse para ver sus estadísticas.
 * Añadida un backup de la base de datos y esta documentación al proyecto.
